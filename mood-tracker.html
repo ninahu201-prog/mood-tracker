@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>小情緒記錄器</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 520px;
+      margin: 32px auto;
+      padding: 16px 20px 32px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+      background: #fafafa;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      border: 1px solid #eee;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    label {
+      font-size: 13px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    input[type="date"],
+    select,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      font-size: 13px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+      max-height: 200px;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #saveBtn {
+      background: #4caf50;
+      color: white;
+      width: 100%;
+      margin-top: 4px;
+    }
+    #saveBtn:hover {
+      opacity: 0.92;
+    }
+    .hint {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .entry {
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+    }
+    .entry-date {
+      font-size: 12px;
+      color: #666;
+    }
+    .entry-mood {
+      font-size: 13px;
+    }
+    .entry-note {
+      font-size: 12px;
+      color: #555;
+      margin-top: 2px;
+      white-space: pre-wrap;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f1f1f1;
+      color: #555;
+    }
+    #weeklySummary {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .summary-number {
+      font-weight: 600;
+    }
+    .summary-mood {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .empty-text {
+      font-size: 12px;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body>
+  <h1>小情緒記錄器</h1>
+  <div class="subtitle">記錄一下今天的心情，之後再回頭看也可以溫柔對待自己 💭</div>
+
+  <!-- 填寫區 -->
+  <div class="card">
+    <div class="card-title">今天的紀錄</div>
+
+    <label for="dateInput">日期</label>
+    <input id="dateInput" type="date" />
+
+    <label for="moodSelect">今天的整體感覺</label>
+    <select id="moodSelect">
+      <option value="">請選擇</option>
+      <option value="1">😣 很糟，很痛苦</option>
+      <option value="2">☁️ 不太好，有點低落</option>
+      <option value="3">😐 普普通通</option>
+      <option value="4">🙂 還不錯，滿穩定</option>
+      <option value="5">✨ 很好，很開心／放鬆</option>
+    </select>
+
+    <label for="noteInput">想多說幾句也可以（可空白）</label>
+    <textarea
+      id="noteInput"
+      placeholder="例如：今天雖然很累，但有好好把某件事完成／今天被什麼話傷到了…"
+    ></textarea>
+
+    <button id="saveBtn">儲存今天的心情</button>
+    <div class="hint">📌 同一天重複儲存會覆蓋今天的紀錄。</div>
+  </div>
+
+  <!-- 最近 7 天小結 -->
+  <div class="card">
+    <div class="card-title">最近 7 天小結（自動統整）</div>
+    <div id="weeklySummary" class="empty-text">目前還沒有資料。</div>
+  </div>
+
+  <!-- 歷史紀錄 -->
+  <div class="card">
+    <div class="card-title">全部紀錄</div>
+    <div id="entriesList" class="empty-text">還沒有任何紀錄，從今天開始也可以 😊</div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "moodEntries_v1";
+
+    const dateInput = document.getElementById("dateInput");
+    const moodSelect = document.getElementById("moodSelect");
+    const noteInput = document.getElementById("noteInput");
+    const saveBtn = document.getElementById("saveBtn");
+    const weeklySummaryDiv = document.getElementById("weeklySummary");
+    const entriesListDiv = document.getElementById("entriesList");
+
+    // 讓日期預設為今天
+    function setToday() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // 從 localStorage 讀取資料
+    function loadEntries() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      try {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) return data;
+        return [];
+      } catch (e) {
+        console.error("解析情緒資料失敗", e);
+        return [];
+      }
+    }
+
+    // 寫回 localStorage
+    function saveEntries(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function moodToText(mood) {
+      switch (Number(mood)) {
+        case 1:
+          return "😣 很糟，很痛苦";
+        case 2:
+          return "☁️ 不太好，有點低落";
+        case 3:
+          return "😐 普普通通";
+        case 4:
+          return "🙂 還不錯，滿穩定";
+        case 5:
+          return "✨ 很好，很開心／放鬆";
+        default:
+          return "";
+      }
+    }
+
+    // 儲存當天紀錄
+    function handleSave() {
+      const date = dateInput.value;
+      const mood = moodSelect.value;
+      const note = noteInput.value.trim();
+
+      if (!date) {
+        alert("請先選擇日期");
+        return;
+      }
+      if (!mood) {
+        alert("請先選擇今天的心情");
+        return;
+      }
+
+      let entries = loadEntries();
+
+      // 檢查有沒有同一天，若有就覆蓋
+      const existingIndex = entries.findIndex((e) => e.date === date);
+      const newEntry = { date, mood: Number(mood), note };
+
+      if (existingIndex >= 0) {
+        entries[existingIndex] = newEntry;
+      } else {
+        entries.push(newEntry);
+      }
+
+      // 依日期排序（新的在前）
+      entries.sort((a, b) => (a.date < b.date ? 1 : -1));
+
+      saveEntries(entries);
+      renderEntries();
+      renderWeeklySummary();
+
+      // 小提醒
+      alert("已儲存今天的心情 🌱");
+    }
+
+    // 顯示全部紀錄
+    function renderEntries() {
+      const entries = loadEntries();
+
+      if (entries.length === 0) {
+        entriesListDiv.innerHTML = '<div class="empty-text">還沒有任何紀錄。</div>';
+        return;
+      }
+
+      entriesListDiv.innerHTML = "";
+      entries.forEach((entry) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "entry";
+
+        const header = document.createElement("div");
+        header.className = "entry-header";
+
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "entry-date";
+        dateSpan.textContent = entry.date;
+
+        const moodSpan = document.createElement("span");
+        moodSpan.className = "entry-mood";
+        moodSpan.textContent = moodToText(entry.mood);
+
+        header.appendChild(dateSpan);
+        header.appendChild(moodSpan);
+        wrapper.appendChild(header);
+
+        if (entry.note) {
+          const noteDiv = document.createElement("div");
+          noteDiv.className = "entry-note";
+          noteDiv.textContent = entry.note;
+          wrapper.appendChild(noteDiv);
+        }
+
+        entriesListDiv.appendChild(wrapper);
+      });
+    }
+
+    // 計算最近 7 天的小結（把最近 7 天當作「這週」）
+    function renderWeeklySummary() {
+      const entries = loadEntries();
+      if (entries.length === 0) {
+        weeklySummaryDiv.className = "empty-text";
+        weeklySummaryDiv.textContent = "目前還沒有資料。";
+        return;
+      }
+
+      const today = new Date();
+      const start = new Date();
+      start.setDate(today.getDate() - 6); // 最近 7 天（含今天）
+
+      const weeklyEntries = entries.filter((entry) => {
+        const d = new Date(entry.date + "T00:00:00");
+        return d >= start && d <= today;
+      });
+
+      if (weeklyEntries.length === 0) {
+        weeklySummaryDiv.className = "empty-text";
+        weeklySummaryDiv.textContent = "最近 7 天內沒有紀錄。可以從今天開始記就好 💡";
+        return;
+      }
+
+      const count = weeklyEntries.length;
+      const sumMood = weeklyEntries.reduce((sum, e) => sum + Number(e.mood), 0);
+      const avgMood = sumMood / count;
+
+      let avgText = "";
+      if (avgMood < 2) {
+        avgText = "這週整體偏辛苦，要好好照顧自己 🫂";
+      } else if (avgMood < 3) {
+        avgText = "這週有點難受的時候，可以試著多安排休息時間。";
+      } else if (avgMood < 4) {
+        avgText = "這週大致普通，偶爾起伏是正常的。";
+      } else {
+        avgText = "這週整體狀態不錯，辛苦的自己值得被稱讚 ✨";
+      }
+
+      weeklySummaryDiv.className = "";
+      weeklySummaryDiv.innerHTML = `
+        <div>
+          最近 7 天內，你一共留下了
+          <span class="summary-number">${count}</span> 筆紀錄。
+        </div>
+        <div>
+          平均心情指數約為
+          <span class="summary-mood">${avgMood.toFixed(1)} / 5</span>。
+        </div>
+        <div style="margin-top:4px;">
+          ${avgText}
+        </div>
+        <div class="hint" style="margin-top:6px;">
+          📌 這裡先用「最近 7 天」當成一週的範圍。之後如果你想改成「星期一～星期日」，我們也可以一起調整。
+        </div>
+      `;
+    }
+
+    // 綁定事件
+    saveBtn.addEventListener("click", handleSave);
+
+    // 初始化
+    setToday();
+    renderEntries();
+    renderWeeklySummary();
+  </script>
+</body>
+</html>
